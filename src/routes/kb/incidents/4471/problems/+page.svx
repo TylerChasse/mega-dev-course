@@ -1,0 +1,69 @@
+---
+layout: runbook
+title: '#4471 · three problems, not one'
+owner: Tyler Chasse
+status: open
+reviewed: 2026-10-30
+signature: Tyler Chasse
+---
+
+<script>
+  import ProblemTable from '#lib/kb/ProblemTable.svelte';
+  import CauseTable from '#lib/kb/CauseTable.svelte';
+  import RenderStamp from '#lib/kb/RenderStamp.svelte';
+  import Callout from '#lib/kb/Callout.svelte';
+
+  const issues = {
+    parser: 'https://github.com/TylerChasse/mega-dev-course/issues/1',
+    hint: 'https://github.com/TylerChasse/mega-dev-course/issues/2',
+    shift: 'https://github.com/TylerChasse/mega-dev-course/issues/3',
+  };
+</script>
+
+[#4471](/kb/incidents/4471) is marked known: one bug, one fix queued. It is three bugs. They were
+merged together because [decision 0001](/kb/decisions/0001-dedupe-by-subject) merges on subject line, and
+all three produce the same subjects: "Wrong day on the invite", "Month and day swapped?". The parser
+fix that is queued closes one of them.
+
+<Callout kind="warn">
+Shipping the queued parser fix will not close #4471. The other two problems keep arriving under
+the same subjects and will be merged into a closed ticket.
+</Callout>
+
+## The three problems
+
+<ProblemTable ticket={4471} {issues} />
+
+Counts are computed from the ticket export at render time. Rows that the export repeats across
+overlapping pages count once (one id, one report).
+
+## How each report was placed
+
+1. **One-day move.** The desk already read these reports and noted them in `desk-notes.json`.
+   Their dates do not swap. The day moves by one, or two readers in different places see different days.
+   A parser that reads the month first cannot cause that, and neither can the hint.
+2. **Hint.** The report came in through the booking form of a tenant on `booking-v3`, whose date field
+   prints `MM/DD/YYYY` under a form that reads the day first. The parser is not involved: people typed
+   what the hint asked for.
+3. **Parser.** Everything else from a day-first tenant: app, email, and `booking-v2` forms. The dates in
+   the bodies are exact swaps (7 April ↔ 4 July).
+
+Tenant and channel decide this, not intake's tag. Intake guesses from the reporter's browser, and the
+table shows how often that guess is wrong for each problem.
+
+## What the existing table shows
+
+The incident page's own table already splits `hint` out and flags it as "no ticket of its own". It
+leaves the one-day moves under `parser` with a footnote. Same data, read by tenant:
+
+<CauseTable ticket={4471} />
+
+## What to do
+
+- Keep #4471 for the parser and ship its fix.
+- Fix the `booking-v3` date hint (or make the form read what the hint says). Separate ticket.
+- Investigate the one-day moves as a timezone bug in invite rendering. Separate ticket.
+- Matching on subject lines will keep merging different bugs. A new decision record should replace 0001
+  and match on cause, as `causes.ts` already computes it.
+
+<RenderStamp {signature} />

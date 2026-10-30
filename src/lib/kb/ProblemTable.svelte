@@ -15,11 +15,13 @@
       .map(([k, v]) => `${k} ×${v}`)
       .join(' · ') || '—';
   const issueNo = (url: string) => '#' + url.split('/').pop();
+  const problems = $derived(split.groups.filter((g) => !g.within).length);
 </script>
 
 <p class="sum">
   <strong>{split.rows}</strong> rows in the export · <strong>{split.merged.length}</strong> unique reports merged into
-  #{ticket} · <strong>{split.groups.length}</strong>
+  #{ticket} · <strong>{problems}</strong>
+  {problems === 1 ? 'cause' : 'causes'}, <strong>{split.groups.length}</strong>
   {split.groups.length === 1 ? 'problem' : 'problems'}
 </p>
 
@@ -29,9 +31,9 @@
   </thead>
   <tbody>
     {#each split.groups as g (g.problem)}
-      <tr>
-        <td><code>{g.problem}</code><br /><b>{PROBLEMS[g.problem].title}</b><br /><span class="what">{PROBLEMS[g.problem].what}</span></td>
-        <td class="n">{g.reports.length}</td>
+      <tr class:part={g.within}>
+        <td>{#if g.within}<span class="what">part of <code>{g.within}</code>:</span> {/if}<code>{g.problem}</code><br /><b>{PROBLEMS[g.problem].title}</b><br /><span class="what">{PROBLEMS[g.problem].what}</span></td>
+        <td class="n">{g.within ? `(${g.reports.length})` : g.reports.length}</td>
         <td>{g.tenants.length}{g.tenants.length <= 5 ? `: ${g.tenants.join(', ')}` : ''}</td>
         <td class="tags">{list(g.channels)}</td>
         <td class="tags">{list(g.mistagged)}</td>
@@ -47,4 +49,6 @@
   .n { font-weight: 600; font-size: 1.05rem; }
   .what, .tags { color: var(--muted); font-size: 0.85em; }
   .none { color: var(--warn); font-weight: 600; }
+  .part td { background: var(--note-bg); }
+  .part td:first-child { padding-left: 1.5rem; }
 </style>

@@ -1,10 +1,10 @@
-// What #4471 actually holds, problem by problem. causes.ts tells parser from hint by tenant and
-// channel; it has no place for the reports the desk itself read as a one-day move (desk-notes.json),
-// so it files them under `parser`. Their dates are not swapped: they move by one day, or differ by
-// where the reader sits. That is a third problem, and it gets its own row here.
-import { causeOf, uniqueById, type Report, type Tenant } from '#lib/kb/causes';
+// What #4471 actually holds, problem by problem. Counted the desk's way: causes.ts places every
+// report by tenant and channel (parser or hint), and a report the desk read differently
+// (desk-notes.json) stays counted where it is filed. The one-day moves are a third problem, but
+// they sit inside `parser` in the desk's view, so here they are a part of it, not a separate row.
+import { causeOf, uniqueById, type Cause, type Report, type Tenant } from '#lib/kb/causes';
 
-export type Problem = 'parser' | 'hint' | 'shift' | 'unplaced';
+export type Problem = Cause | 'shift' | 'unplaced';
 
 export const PROBLEMS: Record<Problem, { title: string; what: string }> = {
   parser: {
@@ -25,21 +25,37 @@ export const PROBLEMS: Record<Problem, { title: string; what: string }> = {
   },
 };
 
-export function problemOf(r: Report, t: Tenant | undefined, oneDayMove: readonly string[]): Problem {
-  if (oneDayMove.includes(r.id)) return 'shift';
-  return causeOf(r, t) ?? 'unplaced';
-}
-
 export type ProblemGroup = {
   problem: Problem;
   reports: Report[];
   tenants: string[];
   channels: Record<string, number>;
-  // Intake's guess disagrees with the problem: tag → count.
+  // Intake's guess disagrees with the cause the report is filed under: tag → count.
   mistagged: Record<string, number>;
   firstSeen: string;
   lastSeen: string;
+  // Set on a part of a larger group: the problem it is counted inside.
+  within?: Problem;
 };
+
+function group(problem: Problem, rs: Report[], filedAs: Problem, within?: Problem): ProblemGroup {
+  const days = rs.map((r) => r.receivedAt.slice(0, 10)).sort();
+  const count = (key: (r: Report) => string | null) =>
+    rs.reduce<Record<string, number>>((n, r) => {
+      const k = key(r);
+      return k === null ? n : { ...n, [k]: (n[k] ?? 0) + 1 };
+    }, {});
+  return {
+    problem,
+    reports: rs,
+    tenants: [...new Set(rs.map((r) => r.tenant))].sort(),
+    channels: count((r) => r.channel),
+    mistagged: count((r) => (r.meta.intakeTag === filedAs ? null : r.meta.intakeTag)),
+    firstSeen: days[0],
+    lastSeen: days[days.length - 1],
+    within,
+  };
+}
 
 export function splitTicket(
   all: Report[],
@@ -50,27 +66,18 @@ export function splitTicket(
   const merged = uniqueById(all).filter((r) => r.mergedInto === ticket);
   const by = new Map<Problem, Report[]>();
   for (const r of merged) {
-    const p = problemOf(r, tenantOf(r), oneDayMove);
+    const p: Problem = causeOf(r, tenantOf(r)) ?? 'unplaced';
     by.set(p, [...(by.get(p) ?? []), r]);
   }
   const groups = [...by.entries()]
-    .map(([problem, rs]) => {
-      const days = rs.map((r) => r.receivedAt.slice(0, 10)).sort();
-      const count = (key: (r: Report) => string | null) =>
-        rs.reduce<Record<string, number>>((n, r) => {
-          const k = key(r);
-          return k === null ? n : { ...n, [k]: (n[k] ?? 0) + 1 };
-        }, {});
-      return {
-        problem,
-        reports: rs,
-        tenants: [...new Set(rs.map((r) => r.tenant))].sort(),
-        channels: count((r) => r.channel),
-        mistagged: count((r) => (r.meta.intakeTag === problem ? null : r.meta.intakeTag)),
-        firstSeen: days[0],
-        lastSeen: days[days.length - 1],
-      };
-    })
+    .map(([p, rs]) => group(p, rs, p))
     .sort((a, b) => b.reports.length - a.reports.length);
-  return { rows: all.filter((r) => r.mergedInto === ticket).length, merged, groups };
+  // The one-day moves: shown under the group they are filed in.
+  const out: ProblemGroup[] = [];
+  for (const g of groups) {
+    out.push(g);
+    const moved = g.reports.filter((r) => oneDayMove.includes(r.id));
+    if (moved.length) out.push(group('shift', moved, g.problem, g.problem));
+  }
+  return { rows: all.filter((r) => r.mergedInto === ticket).length, merged, groups: out };
 }

@@ -4,7 +4,7 @@ title: '#4471 · three problems, not one'
 owner: Tyler Chasse
 status: open
 reviewed: 2026-10-30
-signature: Tyler Chasse
+signature: v1.eyJzdWIiOiIxNzk3IiwiYXVkIjoiY2hhbGxlbmdlOndoYXQtaXQtc2hvd3MiLCJpYXQiOjE3OTMzODgzOTgsImV4cCI6MTc5MzQ3NDc5OH0.pcXE_o5D3J0KwL7t4ff-k3pIIXwZqT1PLk4tH3o6Q6w
 ---
 
 <script>
